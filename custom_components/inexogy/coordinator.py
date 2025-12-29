@@ -18,12 +18,13 @@ class InexogyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         api: InexogyAPI,
         meter_id: str,
         name: str,
+        update_interval: int | None = None,
     ) -> None:
         super().__init__(
             hass,
             hass.helpers.logger.async_get_logger(__name__),
             name=f"Inexogy {name}",
-            update_interval=timedelta(seconds=30),
+            update_interval=timedelta(seconds=update_interval or 60),
         )
         self._api = api
         self._meter_id = meter_id

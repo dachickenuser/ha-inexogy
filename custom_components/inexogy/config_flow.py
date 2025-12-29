@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
+import logging
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
@@ -17,6 +18,8 @@ from .const import (
 )
 from .oauth import InexogyOAuthClient
 from .api import InexogyAPI
+
+_LOGGER = logging.getLogger(__name__)
 
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
@@ -69,7 +72,8 @@ class InexogyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # Weiter zu Verifier-Step
                 return await self.async_step_verifier()
-            except Exception:
+            except Exception as err:
+                _LOGGER.exception("Error requesting request token: %s", err)
                 errors["base"] = "auth_error"
 
         return self.async_show_form(
@@ -129,7 +133,8 @@ class InexogyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title="Inexogy", data=data
                 )
-            except Exception:
+            except Exception as err:
+                _LOGGER.exception("Error obtaining access token or fetching meters: %s", err)
                 errors["base"] = "auth_error"
 
         # Hinweis: dem Nutzer die Authorize-URL anzeigen
@@ -157,5 +162,11 @@ class InexogyOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ):
-        # Minimal: erst mal keine Optionen anbieten
-        return self.async_create_entry(title="", data={})
+        current = self.config_entry.options.get("update_interval", 60)
+
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        schema = vol.Schema({vol.Optional("update_interval", default=current): int})
+
+        return self.async_show_form(step_id="init", data_schema=schema)

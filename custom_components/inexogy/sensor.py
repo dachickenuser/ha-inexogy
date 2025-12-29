@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import logging
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -9,6 +10,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -55,7 +58,11 @@ class InexogyBaseSensor(SensorEntity):
         data = self.coordinator.data
         if not data:
             return None
-        return self._extract_value(data)
+        try:
+            return self._extract_value(data)
+        except Exception as err:
+            _LOGGER.exception("Error extracting value for %s: %s", self._base_name, err)
+            return None
 
     def _extract_value(self, data: dict[str, Any]):
         raise NotImplementedError
@@ -73,8 +80,15 @@ class InexogyPowerSensor(InexogyBaseSensor):
         return f"inexogy_{self._meter_id}_power"
 
     def _extract_value(self, data: dict[str, Any]):
-        values = data.get("values", {})
-        return values.get("power")
+        values = data.get("values", {}) or {}
+        try:
+            val = values.get("power")
+            if val is None:
+                return None
+            return float(val)
+        except (TypeError, ValueError) as err:
+            _LOGGER.debug("Invalid power value for %s: %s (%s)", self._meter_id, val, err)
+            return None
 
 
 class InexogyEnergyImportSensor(InexogyBaseSensor):
@@ -89,12 +103,15 @@ class InexogyEnergyImportSensor(InexogyBaseSensor):
         return f"inexogy_{self._meter_id}_energy_import"
 
     def _extract_value(self, data: dict[str, Any]):
-        values = data.get("values", {})
-        energy = values.get("energy")
-        if energy is None:
+        values = data.get("values", {}) or {}
+        try:
+            energy = values.get("energy")
+            if energy is None:
+                return None
+            return float(energy) / 1000.0
+        except (TypeError, ValueError) as err:
+            _LOGGER.debug("Invalid energy value for %s: %s (%s)", self._meter_id, energy, err)
             return None
-        # laut deinem Beispiel: Werte als Wh → kWh
-        return float(energy) / 1000.0
 
 
 class InexogyEnergyExportSensor(InexogyBaseSensor):
@@ -109,8 +126,12 @@ class InexogyEnergyExportSensor(InexogyBaseSensor):
         return f"inexogy_{self._meter_id}_energy_export"
 
     def _extract_value(self, data: dict[str, Any]):
-        values = data.get("values", {})
-        energy_out = values.get("energyOut")
-        if energy_out is None:
+        values = data.get("values", {}) or {}
+        try:
+            energy_out = values.get("energyOut")
+            if energy_out is None:
+                return None
+            return float(energy_out) / 1000.0
+        except (TypeError, ValueError) as err:
+            _LOGGER.debug("Invalid energyOut value for %s: %s (%s)", self._meter_id, energy_out, err)
             return None
-        return float(energy_out) / 1000.0

@@ -44,8 +44,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for meter in meters:
         meter_id = meter["meterId"]
         name = meter.get("name") or meter.get("fullSerialNumber", meter_id)
-
-        coordinator = InexogyCoordinator(hass, api, meter_id, name)
+        # Use configured update interval if provided via options flow
+        update_interval = entry.options.get("update_interval", 60)
+        coordinator = InexogyCoordinator(
+            hass, api, meter_id, name, update_interval=update_interval
+        )
         await coordinator.async_config_entry_first_refresh()
 
         hass.data[DOMAIN][entry.entry_id]["coordinators"][meter_id] = coordinator
